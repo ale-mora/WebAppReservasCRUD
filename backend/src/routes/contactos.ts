@@ -14,7 +14,16 @@ contactosRouter.use((req, res, next) => {
   next();
 });
 
-// LIST Contacts -> READ webhook expects { tipo: "contacts" }
+// Schema para UPDATE según tu Make UPDATE (contacts)
+const ContactoUpdateSchema = z
+  .object({
+    firstname: z.string().min(1).optional(),
+    lastname: z.string().min(1).optional(),
+    country: z.string().min(1).optional(),
+  })
+  .strict();
+
+// LIST Contacts -> Make READ expects { tipo: "contacts" }
 contactosRouter.get('/', async (req, res) => {
   const payload = { tipo: 'contacts', ...(req.query ?? {}) };
 
@@ -59,4 +68,36 @@ contactosRouter.get('/:id', async (req, res) => {
   };
 
   return res.json({ ok: true, data: normalized });
+});
+
+// UPDATE Contact -> Make UPDATE expects { id, tipo:"contacts", properties:{firstname,lastname,country} }
+contactosRouter.put('/:id', async (req, res) => {
+  const id = z.coerce.string().min(1).parse(req.params.id);
+
+  const parsed = ContactoUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: parsed.error.flatten() });
+
+  // Importante: Make espera properties.* (no firstName/lastName)
+  const payload = {
+    id,
+    tipo: 'contacts',
+    properties: parsed.data,
+  };
+
+  const result = await makeClient.updateReserva<any>(payload);
+  if (!result.ok) return res.status(502).json({ ok: false, error: result.error });
+
+  return res.json({ ok: true, data: result.data });
+});
+
+// DELETE Contact -> Make DELETE expects { id, tipo:"contacts" }
+contactosRouter.delete('/:id', async (req, res) => {
+  const id = z.coerce.string().min(1).parse(req.params.id);
+
+  const payload = { id, tipo: 'contacts' };
+
+  const result = await makeClient.deleteReserva<any>(payload);
+  if (!result.ok) return res.status(502).json({ ok: false, error: result.error });
+
+  return res.json({ ok: true, data: result.data });
 });
